@@ -1,0 +1,46 @@
+# Data & model artifacts (Q8: no large files in Git)
+data/
+outputs/
+*.zip
+*.pt
+*.ckpt
+*.npy
+*.parquet
+*.vec
+*.bin
+*.h5
+*.pkl
+*.joblib
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+dist/
+build/
+*.so
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# OS
+Thumbs.db

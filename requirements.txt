@@ -2,7 +2,7 @@ polars>=0.20.8
 numpy>=1.24.0,<1.26.1
 scikit-learn==1.4.0
 rank_bm25>=0.2.2
-faiss-cpu>=1.7.4
+faiss-cpu==1.7.4
 sentence-transformers==2.2.2
 tqdm
 pyyaml

@@ -13,7 +13,13 @@ test:
 	pytest src/tests/ -v
 
 evaluate:
-	python src/pipeline/evaluate_recall.py --dataset all
+	python src/pipeline/evaluate_recall.py --dataset all --retriever bm25
+
+embed:
+	python src/pipeline/embedding_utils.py
+
+evaluate-semantic:
+	python src/pipeline/evaluate_recall.py --dataset all --retriever semantic
 
 clean:
 	rm -rf data/ outputs/

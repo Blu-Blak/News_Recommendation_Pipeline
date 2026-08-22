@@ -10,6 +10,7 @@ import multiprocessing
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from src.pipeline.bm25_retriever import BM25Retriever
+from src.pipeline.semantic_retriever import SemanticRetriever
 
 def calculate_recall_at_k(retrieved: list, ground_truth: list, k: int) -> float:
     if not ground_truth:
@@ -37,7 +38,7 @@ def process_row(row_tuple):
         calculate_recall_at_k(retrieved, clicked, 200)
     )
 
-def evaluate_dataset(dataset: str, scale: str = "demo"):
+def evaluate_dataset(dataset: str, retriever_type: str, scale: str = "demo", limit: int = None):
     if dataset == "mind":
         proc_dir = Path("data/processed/mind")
     else:
@@ -47,7 +48,10 @@ def evaluate_dataset(dataset: str, scale: str = "demo"):
     df_articles = pl.read_parquet(proc_dir / "articles.parquet")
     df_val = pl.read_parquet(proc_dir / "val.parquet")
     
-    retriever = BM25Retriever(df_articles)
+    if retriever_type == "semantic":
+        retriever = SemanticRetriever(df_articles)
+    else:
+        retriever = BM25Retriever(df_articles)
     
     # Extract data for processing
     rows_to_process = []
@@ -57,22 +61,33 @@ def evaluate_dataset(dataset: str, scale: str = "demo"):
         if clicked:
             rows_to_process.append((history, list(clicked)))
             
+    if limit is not None:
+        rows_to_process = rows_to_process[:limit]
+            
     print(f"Evaluating {len(rows_to_process)} impressions with multiprocessing...")
     
     recall_50, recall_100, recall_200 = [], [], []
-    num_cores = max(1, multiprocessing.cpu_count() - 1)
     
-    with multiprocessing.Pool(processes=num_cores, initializer=init_worker, initargs=(retriever,)) as pool:
-        # Use chunksize for efficiency
-        results = list(tqdm(pool.imap(process_row, rows_to_process, chunksize=100), total=len(rows_to_process)))
-        
+    if retriever_type == "semantic":
+        # FAISS is natively multi-threaded in C++ and cannot be pickled for multiprocessing safely.
+        # We run it sequentially (it will still be extremely fast).
+        init_worker(retriever)
+        results = []
+        for row in tqdm(rows_to_process, desc="Evaluating Semantic"):
+            results.append(process_row(row))
+    else:
+        # BM25 is pure Python and single-threaded, so we use multiprocessing
+        num_cores = max(1, multiprocessing.cpu_count() - 1)
+        with multiprocessing.Pool(processes=num_cores, initializer=init_worker, initargs=(retriever,)) as pool:
+            results = list(tqdm(pool.imap(process_row, rows_to_process, chunksize=100), total=len(rows_to_process)))
+            
     for r50, r100, r200 in results:
         recall_50.append(r50)
         recall_100.append(r100)
         recall_200.append(r200)
         
     print("\n" + "="*40)
-    print(f"BM25 Retrieval Results - {dataset.upper()}")
+    print(f"{retriever_type.upper()} Retrieval Results - {dataset.upper()}")
     print("="*40)
     print(f"Recall@50:  {np.mean(recall_50):.4f}")
     print(f"Recall@100: {np.mean(recall_100):.4f}")
@@ -83,10 +98,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", type=str, required=True, choices=["mind", "ebnerd", "all"])
     parser.add_argument("--scale", type=str, default="demo", choices=["demo", "small"])
+    parser.add_argument("--retriever", type=str, default="bm25", choices=["bm25", "semantic"])
+    parser.add_argument("--limit", type=int, default=None, help="Limit number of impressions to evaluate")
     args = parser.parse_args()
     
     if args.dataset == "all":
-        evaluate_dataset("ebnerd", args.scale)
-        evaluate_dataset("mind")
+        evaluate_dataset("ebnerd", args.retriever, args.scale, args.limit)
+        evaluate_dataset("mind", args.retriever, args.limit)
     else:
-        evaluate_dataset(args.dataset, args.scale)
+        evaluate_dataset(args.dataset, args.retriever, args.scale, args.limit)

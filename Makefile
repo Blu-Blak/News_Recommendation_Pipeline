@@ -12,5 +12,8 @@ data:
 test:
 	pytest src/tests/ -v
 
+evaluate:
+	python src/pipeline/evaluate_recall.py --dataset all
+
 clean:
 	rm -rf data/ outputs/

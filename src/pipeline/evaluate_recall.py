@@ -103,7 +103,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     if args.dataset == "all":
-        evaluate_dataset("ebnerd", args.retriever, args.scale, args.limit)
-        evaluate_dataset("mind", args.retriever, args.limit)
+        evaluate_dataset("ebnerd", args.retriever, scale=args.scale, limit=args.limit)
+        evaluate_dataset("mind", args.retriever, scale="demo", limit=args.limit)
     else:
-        evaluate_dataset(args.dataset, args.retriever, args.scale, args.limit)
+        evaluate_dataset(args.dataset, args.retriever, scale=args.scale, limit=args.limit)

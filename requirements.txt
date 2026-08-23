@@ -3,7 +3,11 @@ numpy>=1.24.0,<1.26.1
 scikit-learn==1.4.0
 rank_bm25>=0.2.2
 faiss-cpu==1.7.4
+torch==2.2.2
 sentence-transformers==2.2.2
+transformers==4.37.2
+huggingface-hub<0.23.0
 tqdm
 pyyaml
 pytest
+pyarrow

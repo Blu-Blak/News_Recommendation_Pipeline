@@ -12,6 +12,12 @@ data:
 test:
 	pytest src/tests/ -v
 
+quick-test:
+	@echo "--- QUICK EVALUATION (BM25) ---"
+	python src/pipeline/evaluate_recall.py --dataset all --retriever bm25 --limit 1000
+	@echo "\n--- QUICK EVALUATION (SEMANTIC) ---"
+	python src/pipeline/evaluate_recall.py --dataset all --retriever semantic --limit 1000
+
 evaluate:
 	python src/pipeline/evaluate_recall.py --dataset all --retriever bm25
 
@@ -20,6 +26,23 @@ embed:
 
 evaluate-semantic:
 	python src/pipeline/evaluate_recall.py --dataset all --retriever semantic
+
+data-large:
+	python src/pipeline/build_pipeline.py --dataset mind --include-test
+	python src/pipeline/build_pipeline.py --dataset ebnerd --scale demo --include-test
+
+submission-mind:
+	python src/pipeline/generate_predictions.py --dataset mind --retriever bm25
+	python src/pipeline/generate_predictions.py --dataset mind --retriever semantic
+
+submission-ebnerd:
+	python src/pipeline/generate_predictions.py --dataset ebnerd --retriever bm25
+	python src/pipeline/generate_predictions.py --dataset ebnerd --retriever semantic
+
+submission: submission-mind submission-ebnerd
+
+sbatch:
+	sbatch run_submission.sbatch
 
 clean:
 	rm -rf data/ outputs/

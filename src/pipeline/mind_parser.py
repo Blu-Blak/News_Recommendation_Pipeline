@@ -47,3 +47,32 @@ def parse_mind_behaviors(path: Path) -> pl.DataFrame:
     )
     
     return df
+
+def parse_mind_test_behaviors(path: Path) -> pl.DataFrame:
+    df = pl.read_csv(
+        path,
+        separator="\t",
+        has_header=False,
+        new_columns=["impression_id", "user_id", "time", "history", "impressions"],
+        quote_char=None
+    )
+    
+    # Fill nulls in history
+    df = df.with_columns(pl.col("history").fill_null(""))
+    
+    # Process history: space separated string of article IDs -> list of strings
+    df = df.with_columns(
+        pl.col("history").str.split(" ").alias("article_id_fixed")
+    )
+    
+    # Process impressions: NO labels in test set! Just space separated string of article IDs.
+    df = df.with_columns(
+        pl.col("impressions").str.split(" ").alias("article_ids_inview")
+    )
+    
+    # Parse time to datetime
+    df = df.with_columns(
+        pl.col("time").str.strptime(pl.Datetime, format="%m/%d/%Y %I:%M:%S %p").alias("impression_time")
+    )
+    
+    return df

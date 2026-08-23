@@ -61,11 +61,47 @@ def download_mind(raw_dir: Path):
             
         extract_zip(zip_path, extract_dir)
 
+def download_mind_large(raw_dir: Path):
+    repo_id = "yjw1029/MIND"
+    filename = "MINDlarge_test.zip"
+    
+    zip_path = raw_dir / filename
+    extract_dir = raw_dir / filename.replace(".zip", "")
+    
+    if zip_path.exists() and zipfile.is_zipfile(zip_path):
+        print(f"File {zip_path} already exists and is a valid zip, skipping download.")
+    else:
+        if zip_path.exists():
+            print(f"File {zip_path} exists but is invalid. Deleting...")
+            zip_path.unlink()
+        print(f"Downloading {filename} from HuggingFace...")
+        token = os.environ.get("HF_TOKEN")
+        hf_hub_download(
+            repo_id=repo_id,
+            filename=filename,
+            repo_type="dataset",
+            local_dir=str(raw_dir),
+            token=token
+        )
+        
+    extract_zip(zip_path, extract_dir)
+
 def download_ebnerd(raw_dir: Path, scale: str = "demo"):
     urls = {
         f"ebnerd_{scale}.zip": f"https://ebnerd-dataset.s3.eu-west-1.amazonaws.com/ebnerd_{scale}.zip",
         "Ekstra_Bladet_word2vec.zip": "https://ebnerd-dataset.s3.eu-west-1.amazonaws.com/artifacts/Ekstra_Bladet_word2vec.zip",
         "google_bert_base_multilingual_cased.zip": "https://ebnerd-dataset.s3.eu-west-1.amazonaws.com/artifacts/google_bert_base_multilingual_cased.zip"
+    }
+    for filename, url in urls.items():
+        zip_path = raw_dir / filename
+        extract_dir = raw_dir / filename.replace(".zip", "")
+        download_file(url, zip_path)
+        extract_zip(zip_path, extract_dir)
+
+def download_ebnerd_large(raw_dir: Path):
+    urls = {
+        "ebnerd_large.zip": "https://ebnerd-dataset.s3.eu-west-1.amazonaws.com/ebnerd_large.zip",
+        "ebnerd_testset.zip": "https://ebnerd-dataset.s3.eu-west-1.amazonaws.com/ebnerd_testset.zip"
     }
     for filename, url in urls.items():
         zip_path = raw_dir / filename

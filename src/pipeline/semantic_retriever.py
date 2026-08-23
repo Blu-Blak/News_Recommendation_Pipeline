@@ -24,6 +24,11 @@ class SemanticRetriever:
         # L2 normalize embeddings for cosine similarity search using Inner Product
         faiss.normalize_L2(embeddings_matrix)
         
+        # Update dictionary with normalized vectors so we don't have to normalize later
+        for i, aid in enumerate(self.article_ids):
+            self.article_embeddings[aid] = embeddings_matrix[i]
+
+        
         d = embeddings_matrix.shape[1]
         print(f"Building FAISS IndexFlatIP (dim={d}) over {len(self.article_ids)} articles...")
         self.index = faiss.IndexFlatIP(d)
@@ -60,3 +65,33 @@ class SemanticRetriever:
         scores, indices = self.index.search(query_emb, top_k)
         
         return [self.article_ids[idx] for idx in indices[0]]
+
+    def score_candidates(self, history_article_ids: list, candidate_article_ids: list) -> list[float]:
+        """
+        Scores specific candidate articles for a given history query.
+        Returns a list of cosine similarity scores in the same order as candidate_article_ids.
+        """
+        query_emb = self.formulate_query(history_article_ids)
+        if query_emb is None:
+            return [0.0] * len(candidate_article_ids)
+            
+        # query_emb is (1, D), L2-normalized.
+        query_vec = query_emb[0]
+        
+        # Build matrix of candidate embeddings
+        valid_indices = []
+        valid_vecs = []
+        for i, cid in enumerate(candidate_article_ids):
+            cand_vec = self.article_embeddings.get(cid)
+            if cand_vec is not None:
+                valid_indices.append(i)
+                valid_vecs.append(cand_vec)
+                
+        scores = [0.0] * len(candidate_article_ids)
+        if valid_vecs:
+            cand_matrix = np.vstack(valid_vecs)
+            dot_products = cand_matrix @ query_vec
+            for idx, score in zip(valid_indices, dot_products):
+                scores[idx] = float(score)
+                
+        return scores

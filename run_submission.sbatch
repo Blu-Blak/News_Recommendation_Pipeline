@@ -12,46 +12,55 @@
 #SBATCH --mail-type=ALL
 #SBATCH --time=05:00:00
 
-# Exit immediately if a command exits with a non-zero status
+# Stop execution on any error
 set -e
 
-# Create logs directory for SLURM output
+# Create logs directory for output
 mkdir -p logs
 
 echo "=================================================="
-echo "Starting News Recommendation Pipeline Job"
+echo "Starting Full News Recommendation Pipeline"
 echo "Job ID: $SLURM_JOB_ID"
 echo "Node List: $SLURM_NODELIST"
-echo "CPUs allocated: $SLURM_CPUS_PER_TASK"
+echo "CPUs: $SLURM_CPUS_PER_TASK"
+echo "GPU: $CUDA_VISIBLE_DEVICES"
 echo "Start Time: $(date)"
 echo "=================================================="
 
-# Activate virtual environment if available
-if [ -d "venv" ]; then
-    source venv/bin/activate
-elif [ -d "../venv" ]; then
-    source ../venv/bin/activate
+# 1. Environment Setup (From Scratch)
+echo "[1/5] Setting up virtual environment..."
+if [ ! -d "venv" ]; then
+    python3 -m venv venv
+fi
+source venv/bin/activate
+
+echo "[2/5] Installing dependencies..."
+pip install --upgrade pip setuptools wheel
+pip install -r requirements.txt
+if [ -d "../ebnerd-benchmark" ]; then
+    pip install ../ebnerd-benchmark/
 fi
 
-# Ensure high thread usage for numpy/polars/faiss
+# Set thread parallelism environment variables
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export MKL_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export OPENBLAS_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export POLARS_MAX_THREADS=$SLURM_CPUS_PER_TASK
 
-# 1. Download & build large datasets if missing
-echo "Building datasets..."
+# 2. Data Preparation & Downloading
+echo "[3/5] Downloading and building datasets (MIND + EB-NeRD)..."
 make data-large
 
-# 2. Compute BERT embeddings for MIND test articles
-echo "Generating embeddings..."
+# 3. Embedding Generation (Accelerated via GPU)
+echo "[4/5] Computing BERT embeddings..."
 make embed
 
-# 3. Generate Codabench submissions (MIND & EB-NeRD for Lexical and Semantic)
-echo "Generating final prediction files..."
+# 4. Generate Final Submissions for Codabench
+echo "[5/5] Generating all 4 Codabench submission files..."
 make submission
 
 echo "=================================================="
-echo "Job Finished Successfully at $(date)"
-echo "Outputs stored in outputs/submissions/"
+echo "Pipeline Completed Successfully at $(date)"
+echo "Submission ZIP files created in outputs/submissions/:"
+ls -lh outputs/submissions/*.zip
 echo "=================================================="

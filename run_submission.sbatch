@@ -1,15 +1,16 @@
 #!/bin/bash
+#SBATCH -A research
 #SBATCH --job-name=news_rec_pipeline
 #SBATCH --output=logs/slurm_%j.out
 #SBATCH --error=logs/slurm_%j.err
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
+#SBATCH --gres=gpu:1
 #SBATCH --mem=32G
 #SBATCH --mail-user=dhruv.malik@research.iiit.ac.in
 #SBATCH --mail-type=ALL
 #SBATCH --time=05:00:00
-#SBATCH --partition=general
 
 # Exit immediately if a command exits with a non-zero status
 set -e

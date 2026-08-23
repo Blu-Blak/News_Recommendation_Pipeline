@@ -6,7 +6,9 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=32G
-#SBATCH --time=02:00:00
+#SBATCH --mail-user=dhruv.malik@research.iiit.ac.in
+#SBATCH --mail-type=ALL
+#SBATCH --time=05:00:00
 #SBATCH --partition=general
 
 # Exit immediately if a command exits with a non-zero status

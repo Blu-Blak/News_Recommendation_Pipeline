@@ -112,8 +112,23 @@ def generate_predictions(dataset: str, retriever_type: str, test_data_path: Path
 
     zip_path = out_dir / f"{dataset}_{retriever_type}_submission.zip"
     print(f"Creating submission zip: {zip_path}")
+    
+    # Try standard DEFLATE at level 9 first
     with zipfile.ZipFile(zip_path, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=9) as zipf:
         zipf.write(txt_path, arcname=txt_filename)
+        
+    size_mb = zip_path.stat().st_size / (1024 * 1024)
+    print(f"Initial Zip Size (DEFLATE): {size_mb:.2f} MB")
+    
+    # If the zip file exceeds 48MB, re-compress using ZIP_LZMA to guarantee <50MB size for submission portals
+    if size_mb > 48.0:
+        print("Zip exceeds 48MB limit. Re-compressing using LZMA algorithm for ultra-high compression (<50MB)...")
+        with zipfile.ZipFile(zip_path, 'w', compression=zipfile.ZIP_LZMA) as zipf:
+            zipf.write(txt_path, arcname=txt_filename)
+        final_size_mb = zip_path.stat().st_size / (1024 * 1024)
+        print(f"Final Squeezed Zip Size (LZMA): {final_size_mb:.2f} MB")
+    else:
+        print(f"Final Zip Size: {size_mb:.2f} MB")
         
     txt_path.unlink()
     print("Done!")

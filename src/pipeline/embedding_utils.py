@@ -9,7 +9,7 @@ def _process_file(articles_path: Path, model):
     if not articles_path.exists():
         return
         
-    print(f"Loading MIND articles from {articles_path}...")
+    print(f"Loading articles from {articles_path}...")
     df_articles = pl.read_parquet(articles_path)
     
     if "bert" in df_articles.columns:
@@ -19,7 +19,7 @@ def _process_file(articles_path: Path, model):
     texts = []
     for row in df_articles.iter_rows(named=True):
         title = row.get("title") or ""
-        abstract = row.get("abstract") or ""
+        abstract = row.get("abstract") or row.get("subtitle") or ""
         texts.append(f"{title} {abstract}".strip())
         
     print(f"Computing embeddings for {len(texts)} articles in {articles_path.name}. This may take a few minutes...")
@@ -32,17 +32,19 @@ def _process_file(articles_path: Path, model):
     df_articles.write_parquet(articles_path)
     print(f"Successfully saved embeddings to {articles_path}")
 
-def generate_mind_embeddings():
-    proc_dir = Path("data/processed/mind")
-    
+def generate_all_embeddings():
     print("Loading sentence-transformers model 'all-MiniLM-L6-v2'...")
     model = SentenceTransformer("all-MiniLM-L6-v2")
     
-    # Process train/val articles
-    _process_file(proc_dir / "articles.parquet", model)
+    # Process MIND articles
+    mind_dir = Path("data/processed/mind")
+    _process_file(mind_dir / "articles.parquet", model)
+    _process_file(mind_dir / "test_articles.parquet", model)
     
-    # Process large test articles if they exist
-    _process_file(proc_dir / "test_articles.parquet", model)
+    # Process EB-NeRD articles
+    ebnerd_dir = Path("data/processed/ebnerd_demo")
+    _process_file(ebnerd_dir / "articles.parquet", model)
+    _process_file(ebnerd_dir / "test_articles.parquet", model)
 
 if __name__ == "__main__":
-    generate_mind_embeddings()
+    generate_all_embeddings()

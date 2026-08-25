@@ -27,17 +27,28 @@ embed:
 evaluate-semantic:
 	python src/pipeline/evaluate_recall.py --dataset all --retriever semantic
 
+evaluate-harness:
+	python src/pipeline/evaluate_harness.py --dataset all --retriever all
+
 data-large:
 	python src/pipeline/build_pipeline.py --dataset mind --include-test
 	python src/pipeline/build_pipeline.py --dataset ebnerd --scale demo --include-test
 
-submission-mind:
+submission-mind-bm25:
 	python src/pipeline/generate_predictions.py --dataset mind --retriever bm25
+
+submission-mind-semantic:
 	python src/pipeline/generate_predictions.py --dataset mind --retriever semantic
 
-submission-ebnerd:
+submission-mind: submission-mind-bm25 submission-mind-semantic
+
+submission-ebnerd-bm25:
 	python src/pipeline/generate_predictions.py --dataset ebnerd --retriever bm25
+
+submission-ebnerd-semantic:
 	python src/pipeline/generate_predictions.py --dataset ebnerd --retriever semantic
+
+submission-ebnerd: submission-ebnerd-bm25 submission-ebnerd-semantic
 
 submission: submission-mind submission-ebnerd
 

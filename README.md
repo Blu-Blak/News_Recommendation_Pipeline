@@ -14,7 +14,7 @@ make install
 ### 2. One-Command Data Pipeline
 Downloads raw datasets, cleans articles/behaviors, applies temporal splitting, and constructs feature stores:
 ```bash
-# Small/demo sets for quick iteration
+# MIND-small + EB-NeRD demo + EB-NeRD small
 make data
 
 # Full large test datasets for Codabench submissions
@@ -33,7 +33,13 @@ Runs official ranking metrics (AUC, MRR, nDCG@5, nDCG@10), beyond-accuracy metri
 make evaluate-harness
 ```
 
-### 5. Codabench Prediction Generation (Q5)
+### 5. Anti-Gaming Ablation (Q9)
+Reports metrics **with and without** user click history (features unavailable at serving time):
+```bash
+make evaluate-ablation
+```
+
+### 6. Codabench Prediction Generation (Q5)
 Generates compliant, compressed submission `.zip` files for both MIND and EB-NeRD:
 ```bash
 # Generate all 4 submissions
@@ -46,12 +52,12 @@ make submission-ebnerd-bm25
 make submission-ebnerd-semantic
 ```
 
-### 6. Automated Unit Tests
+### 7. Automated Unit Tests
 ```bash
 make test
 ```
 
-### 7. HPC SLURM Batch Job Submission
+### 8. HPC SLURM Batch Job Submission
 ```bash
 sbatch run_submission.sbatch
 ```

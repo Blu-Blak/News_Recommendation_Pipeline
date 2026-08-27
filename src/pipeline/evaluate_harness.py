@@ -66,6 +66,18 @@ def evaluate_harness(dataset: str, retriever_type: str, limit: int = 2000):
     else:
         retriever = SemanticRetriever(df_articles)
         
+    # Load article embeddings independently for ILD computation (works for all retrievers)
+    article_embeddings = {}
+    emb_col = "bert" if "bert" in df_articles.columns else None
+    if emb_col:
+        print("Loading article embeddings for ILD computation...")
+        for row in df_articles.iter_rows(named=True):
+            emb = row.get(emb_col)
+            if emb is not None:
+                article_embeddings[row["article_id"]] = np.array(emb, dtype=np.float32)
+    else:
+        print("Warning: No embedding column found in articles. ILD will be 0.0.")
+        
     # Pre-calculate article popularities from train set for Novelty metric
     print("Calculating article popularities for Novelty metric...")
     article_pops = {}
@@ -129,9 +141,9 @@ def evaluate_harness(dataset: str, retriever_type: str, limit: int = 2000):
         top10_recs = [candidates[i] for i in top10_idx]
         all_recommendations.append(top10_recs)
         
-        # Beyond-accuracy metrics
-        if hasattr(retriever, 'article_embeddings'):
-            ild = calc_intra_list_diversity(top10_recs, retriever.article_embeddings)
+        # Beyond-accuracy metrics (ILD uses standalone embeddings, works for all retrievers)
+        if article_embeddings:
+            ild = calc_intra_list_diversity(top10_recs, article_embeddings)
             ild_list.append(ild)
             
         novelty = calc_novelty(top10_recs, article_pops)
@@ -181,27 +193,143 @@ def evaluate_harness(dataset: str, retriever_type: str, limit: int = 2000):
     
     return results
 
+def evaluate_ablation(dataset: str, retriever_type: str, limit: int = 2000):
+    """
+    Q9 Anti-Gaming Ablation: Report metrics WITH and WITHOUT features 
+    unavailable at serving time. We ablate by removing user click history,
+    which simulates the cold-start / no-personalization scenario that would
+    be the baseline at serving time without access to historical behavior data.
+    """
+    print(f"\n{'='*60}")
+    print(f"  ANTI-GAMING ABLATION: {dataset.upper()} ({retriever_type.upper()})")
+    print(f"  Comparing: Full History vs. No History (Random Scoring)")
+    print(f"{'='*60}")
+    
+    if dataset == "mind":
+        proc_dir = Path("data/processed/mind")
+    else:
+        proc_dir = Path("data/processed/ebnerd_demo")
+        
+    val_path = proc_dir / "val.parquet"
+    articles_path = proc_dir / "articles.parquet"
+    
+    if not val_path.exists() or not articles_path.exists():
+        print(f"Error: {val_path} or {articles_path} not found. Run `make data` first.")
+        return None
+        
+    df_articles = pl.read_parquet(articles_path)
+    df_val = pl.read_parquet(val_path)
+    
+    if limit and limit < df_val.height:
+        df_val = df_val.head(limit)
+        
+    if retriever_type == "bm25":
+        retriever = BM25Retriever(df_articles)
+    else:
+        retriever = SemanticRetriever(df_articles)
+    
+    hist_col = "article_id_fixed" if "article_id_fixed" in df_val.columns else "history_article_id"
+    histories = df_val[hist_col].to_list() if hist_col in df_val.columns else [[]] * df_val.height
+    inviews = df_val["article_ids_inview"].to_list()
+    clickeds = df_val["article_ids_clicked"].to_list()
+    
+    # Run WITH full history (normal) and WITHOUT history (ablated)
+    metrics_with = {"auc": [], "mrr": [], "ndcg5": [], "ndcg10": []}
+    metrics_without = {"auc": [], "mrr": [], "ndcg5": [], "ndcg10": []}
+    
+    for history, candidates, clicked in zip(histories, inviews, tqdm(clickeds, desc="Ablation")):
+        if history is None:
+            history = []
+        if candidates is None or not candidates or clicked is None or not clicked:
+            continue
+            
+        y_true = np.array([1 if c in clicked else 0 for c in candidates])
+        if np.sum(y_true) == 0:
+            continue
+            
+        # WITH full history (normal mode)
+        scores_with = retriever.score_candidates(history, candidates)
+        scores_with_arr = np.array(scores_with)
+        
+        metrics_with["auc"].append(calc_auc(y_true, scores_with_arr))
+        metrics_with["mrr"].append(calc_mrr(y_true, scores_with_arr))
+        metrics_with["ndcg5"].append(calc_ndcg(y_true, scores_with_arr, k=5))
+        metrics_with["ndcg10"].append(calc_ndcg(y_true, scores_with_arr, k=10))
+        
+        # WITHOUT history (empty history = no user behavior features)
+        scores_without = retriever.score_candidates([], candidates)
+        scores_without_arr = np.array(scores_without)
+        
+        metrics_without["auc"].append(calc_auc(y_true, scores_without_arr))
+        metrics_without["mrr"].append(calc_mrr(y_true, scores_without_arr))
+        metrics_without["ndcg5"].append(calc_ndcg(y_true, scores_without_arr, k=5))
+        metrics_without["ndcg10"].append(calc_ndcg(y_true, scores_without_arr, k=10))
+    
+    result = {
+        "dataset": dataset,
+        "retriever": retriever_type,
+        "ablation": "history_removal",
+        "n_samples": len(metrics_with["auc"]),
+        "with_history": {
+            "AUC": f"{np.mean(metrics_with['auc']):.4f}",
+            "MRR": f"{np.mean(metrics_with['mrr']):.4f}",
+            "nDCG@5": f"{np.mean(metrics_with['ndcg5']):.4f}",
+            "nDCG@10": f"{np.mean(metrics_with['ndcg10']):.4f}",
+        },
+        "without_history": {
+            "AUC": f"{np.mean(metrics_without['auc']):.4f}",
+            "MRR": f"{np.mean(metrics_without['mrr']):.4f}",
+            "nDCG@5": f"{np.mean(metrics_without['ndcg5']):.4f}",
+            "nDCG@10": f"{np.mean(metrics_without['ndcg10']):.4f}",
+        }
+    }
+    
+    print(f"\n{'='*60}")
+    print(f"  ABLATION RESULTS: {dataset.upper()} - {retriever_type.upper()}")
+    print(f"{'='*60}")
+    print(f"  {'Metric':<12} {'With History':>14} {'Without History':>16} {'Δ':>8}")
+    print(f"  {'-'*52}")
+    for metric in ["AUC", "MRR", "nDCG@5", "nDCG@10"]:
+        w = float(result["with_history"][metric])
+        wo = float(result["without_history"][metric])
+        delta = w - wo
+        print(f"  {metric:<12} {w:>14.4f} {wo:>16.4f} {delta:>+8.4f}")
+    print(f"{'='*60}\n")
+    
+    return result
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", type=str, default="all", choices=["mind", "ebnerd", "all"])
     parser.add_argument("--retriever", type=str, default="all", choices=["bm25", "semantic", "all"])
     parser.add_argument("--limit", type=int, default=2000, help="Number of validation impressions to evaluate")
+    parser.add_argument("--ablation", action="store_true", help="Run Q9 anti-gaming ablation (with/without history)")
     args = parser.parse_args()
     
     datasets = ["mind", "ebnerd"] if args.dataset == "all" else [args.dataset]
     retrievers = ["bm25", "semantic"] if args.retriever == "all" else [args.retriever]
     
     all_results = []
+    ablation_results = []
     for d in datasets:
         for r in retrievers:
             res = evaluate_harness(d, r, limit=args.limit)
             if res:
                 all_results.append(res)
+            if args.ablation:
+                abl = evaluate_ablation(d, r, limit=args.limit)
+                if abl:
+                    ablation_results.append(abl)
                 
     out_file = Path("outputs/eval_harness_results.json")
     out_file.parent.mkdir(parents=True, exist_ok=True)
+    
+    output_data = {"harness": all_results}
+    if ablation_results:
+        output_data["ablation"] = ablation_results
+        
     with open(out_file, "w") as f:
-        json.dump(all_results, f, indent=2)
+        json.dump(output_data, f, indent=2)
         
     print(f"Full evaluation results saved to {out_file}")
 

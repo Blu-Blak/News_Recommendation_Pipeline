@@ -53,16 +53,20 @@ def evaluate_dataset(dataset: str, retriever_type: str, scale: str = "demo", lim
     else:
         retriever = BM25Retriever(df_articles)
     
-    # Extract data for processing
+    # Extract data for processing — include history length for slicing
     rows_to_process = []
+    history_lengths = []
     for row in df_val.iter_rows(named=True):
         history = row.get("article_id_fixed") or []
         clicked = row.get("article_ids_clicked") or []
         if clicked:
             rows_to_process.append((history, list(clicked)))
+            valid_len = len([h for h in history if h and h != 0])
+            history_lengths.append(valid_len)
             
     if limit is not None:
         rows_to_process = rows_to_process[:limit]
+        history_lengths = history_lengths[:limit]
             
     print(f"Evaluating {len(rows_to_process)} impressions with multiprocessing...")
     
@@ -81,18 +85,41 @@ def evaluate_dataset(dataset: str, retriever_type: str, scale: str = "demo", lim
         with multiprocessing.Pool(processes=num_cores, initializer=init_worker, initargs=(retriever,)) as pool:
             results = list(tqdm(pool.imap(process_row, rows_to_process, chunksize=100), total=len(rows_to_process)))
             
-    for r50, r100, r200 in results:
+    # Aggregate overall and sliced results
+    cold_r50, cold_r100, cold_r200 = [], [], []
+    warm_r50, warm_r100, warm_r200 = [], [], []
+    
+    for i, (r50, r100, r200) in enumerate(results):
         recall_50.append(r50)
         recall_100.append(r100)
         recall_200.append(r200)
         
-    print("\n" + "="*40)
+        # Slice: Cold-start (≤5 history clicks) vs Warm (>5)
+        if history_lengths[i] <= 5:
+            cold_r50.append(r50)
+            cold_r100.append(r100)
+            cold_r200.append(r200)
+        else:
+            warm_r50.append(r50)
+            warm_r100.append(r100)
+            warm_r200.append(r200)
+        
+    print("\n" + "="*55)
     print(f"{retriever_type.upper()} Retrieval Results - {dataset.upper()}")
-    print("="*40)
-    print(f"Recall@50:  {np.mean(recall_50):.4f}")
-    print(f"Recall@100: {np.mean(recall_100):.4f}")
-    print(f"Recall@200: {np.mean(recall_200):.4f}")
-    print("="*40 + "\n")
+    print("="*55)
+    print(f"  Overall Recall@50:   {np.mean(recall_50):.4f}")
+    print(f"  Overall Recall@100:  {np.mean(recall_100):.4f}")
+    print(f"  Overall Recall@200:  {np.mean(recall_200):.4f}")
+    print("-"*55)
+    print(f"  Cold-Start (≤5 clicks, n={len(cold_r50)}):")
+    print(f"    Recall@50:  {np.mean(cold_r50):.4f}" if cold_r50 else "    Recall@50:  N/A")
+    print(f"    Recall@100: {np.mean(cold_r100):.4f}" if cold_r100 else "    Recall@100: N/A")
+    print(f"    Recall@200: {np.mean(cold_r200):.4f}" if cold_r200 else "    Recall@200: N/A")
+    print(f"  Warm (>5 clicks, n={len(warm_r50)}):")
+    print(f"    Recall@50:  {np.mean(warm_r50):.4f}" if warm_r50 else "    Recall@50:  N/A")
+    print(f"    Recall@100: {np.mean(warm_r100):.4f}" if warm_r100 else "    Recall@100: N/A")
+    print(f"    Recall@200: {np.mean(warm_r200):.4f}" if warm_r200 else "    Recall@200: N/A")
+    print("="*55 + "\n")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

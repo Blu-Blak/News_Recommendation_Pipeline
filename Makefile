@@ -1,4 +1,4 @@
-.PHONY: install data run evaluate test clean submission
+.PHONY: install data run evaluate test clean submission evaluate-ablation
 
 install:
 	pip install --upgrade pip
@@ -8,6 +8,7 @@ install:
 data:
 	python src/pipeline/build_pipeline.py --dataset mind
 	python src/pipeline/build_pipeline.py --dataset ebnerd --scale demo
+	python src/pipeline/build_pipeline.py --dataset ebnerd --scale small
 
 test:
 	pytest src/tests/ -v
@@ -29,6 +30,9 @@ evaluate-semantic:
 
 evaluate-harness:
 	python src/pipeline/evaluate_harness.py --dataset all --retriever all
+
+evaluate-ablation:
+	python src/pipeline/evaluate_harness.py --dataset all --retriever all --ablation
 
 data-large:
 	python src/pipeline/build_pipeline.py --dataset mind --include-test

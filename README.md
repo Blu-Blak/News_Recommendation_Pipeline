@@ -57,14 +57,10 @@ make submission-ebnerd-semantic
 make test
 ```
 
-### 8. HPC SLURM Batch Job Submission
-```bash
-sbatch run_submission.sbatch
-```
 
 ---
 
 ## 📑 Deliverables & Documentation
-- **Design Note Report ($\le 4$ pages)**: [`design_note.md`](file:///home/dhruvmalik/Desktop/IRE/News_Recommendation_Pipeline/design_note.md)
+- **Design Note Report ($\le 4$ pages)**: [`design_note.pdf`](file:///home/dhruvmalik/Desktop/IRE/News_Recommendation_Pipeline/design_note.pdf)
 - **AI Usage Log**: [`AI_USAGE_LOG.md`](file:///home/dhruvmalik/Desktop/IRE/News_Recommendation_Pipeline/AI_USAGE_LOG.md)
 - **Harness Results JSON**: `outputs/eval_harness_results.json`
